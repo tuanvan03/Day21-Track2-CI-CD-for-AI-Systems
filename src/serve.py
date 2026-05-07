@@ -6,7 +6,7 @@ import os
 
 app = FastAPI()
 
-GCS_BUCKET = os.environ["GCS_BUCKET"]
+GCS_BUCKET = os.environ["CLOUD_BUCKET"]
 GCS_MODEL_KEY = "models/latest/model.pkl"
 MODEL_PATH = os.path.expanduser("~/models/model.pkl")
 
