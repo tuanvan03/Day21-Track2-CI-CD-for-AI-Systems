@@ -61,7 +61,7 @@ jobs:
         # TODO 2: Ghi noi dung credentials ra file tam va set bien moi truong xac thuc.
         run: |
           mkdir -p temp
-          echo "$CLOUD_CREDENTIALS" > "temp/sa-key.json"
+          echo '${{ secrets.CLOUD_CREDENTIALS }}' > temp/sa-key.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=$GITHUB_WORKSPACE/temp/sa-key.json" >> $GITHUB_ENV
           dvc remote modify myremote credentialpath "$GITHUB_WORKSPACE/temp/sa-key.json"
 
