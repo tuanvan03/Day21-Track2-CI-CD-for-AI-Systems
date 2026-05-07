@@ -6,7 +6,7 @@ import os
 
 app = FastAPI()
 
-GCS_BUCKET = os.environ["CLOUD_BUCKET"]
+GCS_BUCKET = os.environ["GCS_BUCKET"]
 GCS_MODEL_KEY = "models/latest/model.pkl"
 MODEL_PATH = os.path.expanduser("~/models/model.pkl")
 
@@ -72,7 +72,7 @@ def predict(req: PredictRequest):
 
     # TODO 7: Goi model.predict([req.features]) de lay ket qua du doan.
     # pred = model.predict(...)
-    pred = int(model.predict([req.features])[0])
+    pred = model.predict([req.features])[0]
 
     # TODO 8: Tra ve dict chua "prediction" (int) va "label" (string).
     # Nhan tuong ung: 0 -> "thap", 1 -> "trung_binh", 2 -> "cao"
