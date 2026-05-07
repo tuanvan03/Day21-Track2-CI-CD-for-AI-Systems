@@ -60,9 +60,9 @@ jobs:
       - name: Authenticate to Cloud Storage
         # TODO 2: Ghi noi dung credentials ra file tam va set bien moi truong xac thuc.
         run: |
-          echo '${{ secrets.CLOUD_CREDENTIALS }}' > "$PWD/sa-key.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$PWD/sa-key.json" >> $GITHUB_ENV
-          dvc remote modify myremote credentialpath "$PWD/sa-key.json"
+          echo '${{ secrets.CLOUD_CREDENTIALS }}' > "$PWD/temp/sa-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$PWD/temp/sa-key.json" >> $GITHUB_ENV
+          dvc remote modify myremote credentialpath "$PWD/temp/sa-key.json"
 
       - name: Pull data with DVC
         # TODO 3: Pull cac file du lieu can thiet tu cloud storage bang lenh dvc pull.
