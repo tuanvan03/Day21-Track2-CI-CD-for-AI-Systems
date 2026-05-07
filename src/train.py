@@ -10,6 +10,13 @@ from sklearn.metrics import accuracy_score, f1_score
 
 EVAL_THRESHOLD = 0.70
 
+# Setup MLflow tracking o module level de ca import (test) va run truc tiep deu dung
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+_exp_name = "track2-experiment"
+if mlflow.get_experiment_by_name(_exp_name) is None:
+    mlflow.create_experiment(_exp_name, artifact_location="file:./mlruns")
+mlflow.set_experiment(_exp_name)
+
 
 def train(
     params: dict,
@@ -80,11 +87,6 @@ def train(
 
 
 if __name__ == "__main__":
-    mlflow.set_tracking_uri("sqlite:///mlflow.db")
-    exp_name = "track2-experiment"
-    if mlflow.get_experiment_by_name(exp_name) is None:
-        mlflow.create_experiment(exp_name, artifact_location="file:./mlruns")
-    mlflow.set_experiment(exp_name)
     with open("params.yaml") as f:
         params = yaml.safe_load(f)
     train(params)
