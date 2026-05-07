@@ -63,6 +63,7 @@ jobs:
           mkdir -p temp
           echo '${{ secrets.CLOUD_CREDENTIALS }}' > temp/sa-key.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=$GITHUB_WORKSPACE/temp/sa-key.json" >> $GITHUB_ENV
+          echo "CLOUD_BUCKET=${{ secrets.CLOUD_BUCKET }}" >> $GITHUB_ENV
           dvc remote modify myremote credentialpath "$GITHUB_WORKSPACE/temp/sa-key.json"
 
       - name: Pull data with DVC
