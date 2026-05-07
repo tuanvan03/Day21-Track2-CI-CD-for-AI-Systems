@@ -1,20 +1,27 @@
+import os
+
+# Set MLflow tracking URI truoc khi import mlflow de tranh file store fallback
+os.environ.setdefault("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+
 import mlflow
 import mlflow.sklearn
 import pandas as pd
 import yaml
 import json
 import joblib
-import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
 
 EVAL_THRESHOLD = 0.70
 
-# Setup MLflow tracking o module level de ca import (test) va run truc tiep deu dung
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+# Dam bao tracking URI duoc set (cho ca truong hop import)
+TRACKING_URI = os.environ["MLFLOW_TRACKING_URI"]
+mlflow.set_tracking_uri(TRACKING_URI)
+
+# Tao / kiem tra experiment va artifact directory
 _exp_name = "track2-experiment"
 if mlflow.get_experiment_by_name(_exp_name) is None:
-    mlflow.create_experiment(_exp_name, artifact_location="file:./mlruns")
+    mlflow.create_experiment(_exp_name)
 mlflow.set_experiment(_exp_name)
 
 
