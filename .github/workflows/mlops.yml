@@ -76,6 +76,21 @@ jobs:
           MLFLOW_TRACKING_URI: sqlite:///mlflow.db
         run: python src/train.py
 
+      - name: Bonus 5 - Kiem tra phan phoi nhan
+        run: |
+          python - <<'EOF'
+          import json
+          with open("outputs/metrics.json") as f:
+              m = json.load(f)
+          dist = m.get("label_distribution", {})
+          warnings = [k for k, v in dist.items() if v < 0.10]
+          print("Phan phoi nhan:", dist)
+          if warnings:
+              print(f"::warning:: CANH BAO: Lop {warnings} chiem < 10% tong mau!")
+          else:
+              print("Tat ca lop deu >= 10%, tiep tuc.")
+          EOF
+
       - name: Read metrics
         id: read_metrics
         # TODO 4: Doc gia tri "accuracy" tu outputs/metrics.json bang Python inline.
@@ -101,17 +116,19 @@ jobs:
           print(f"Uploaded model to gs://{bucket_name}/models/latest/model.pkl")
           EOF
 
-      - name: Save metrics as artifact
+      - name: Bonus 3 - Save bao cao hieu suat
         uses: actions/upload-artifact@v4
         with:
-          name: metrics
-          path: outputs/metrics.json
+          name: performance-report
+          path: |
+            outputs/metrics.json
+            outputs/report.txt
 
 
   # ---------------------------------------------------------------------------
   # JOB 3 - EVAL
-  # Kiem tra nguong chat luong (accuracy >= 0.70).
-  # Pipeline dung lai o day neu mo hinh chua dat yeu cau.
+  # Kiem tra nguong chat luong (accuracy >= 0.70) va so sanh voi phien ban truoc.
+  # Pipeline dung lai o day neu chua dat yeu cau.
   # Chi chay khi Job 2 (Train) hoan thanh thanh cong.
   # ---------------------------------------------------------------------------
   eval:
@@ -119,6 +136,49 @@ jobs:
     needs: train
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to Cloud Storage
+        run: |
+          echo '${{ secrets.CLOUD_CREDENTIALS }}' > sa-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$PWD/sa-key.json" >> $GITHUB_ENV
+          echo "CLOUD_BUCKET=${{ secrets.CLOUD_BUCKET }}" >> $GITHUB_ENV
+
+      - name: Bonus 4 - Kiem tra accuracy so voi phien ban truoc
+        run: |
+          python - <<'EOF'
+          from google.cloud import storage
+          import json, os, tempfile
+
+          bucket_name = os.environ["CLOUD_BUCKET"]
+          new_acc = float("${{ needs.train.outputs.accuracy }}")
+
+          try:
+              client = storage.Client()
+              bucket = client.bucket(bucket_name)
+              blob = bucket.blob("metrics/previous_metrics.json")
+              tmp = tempfile.NamedTemporaryFile(delete=False)
+              blob.download_to_filename(tmp.name)
+              with open(tmp.name) as f:
+                  prev = json.load(f)
+              prev_acc = prev["accuracy"]
+              print(f"Accuracy cu: {prev_acc:.4f}")
+              print(f"Accuracy moi: {new_acc:.4f}")
+              if new_acc < prev_acc:
+                  print(f"FAILED: accuracy moi ({new_acc:.4f}) < accuracy cu ({prev_acc:.4f}). Huy deploy.")
+                  raise SystemExit(1)
+              print(f"PASSED: accuracy moi ({new_acc:.4f}) >= accuracy cu ({prev_acc:.4f}).")
+          except Exception as e:
+              print(f"Khong tim thay metrics cu (lan chay dau tien?): {e}")
+              print("Bo qua kiem tra rollback.")
+          EOF
 
       - name: Check eval gate
         # TODO 6: Doc accuracy tu output cua job train.
@@ -130,6 +190,19 @@ jobs:
           if acc < 0.50:
               raise SystemExit(f"FAILED: accuracy {acc:.4f} < 0.50. Huy deploy.")
           print(f"PASSED: accuracy {acc:.4f} >= 0.50. Dang trien khai model.")
+          EOF
+
+      - name: Bonus 4 - Luu metrics lam phien ban hien tai
+        run: |
+          python - <<'EOF'
+          from google.cloud import storage
+          import json, os
+          bucket_name = os.environ["CLOUD_BUCKET"]
+          client = storage.Client()
+          bucket = client.bucket(bucket_name)
+          blob = bucket.blob("metrics/previous_metrics.json")
+          blob.upload_from_filename("outputs/metrics.json")
+          print("Da luu metrics hien tai lam phien ban tham chieu.")
           EOF
 
 

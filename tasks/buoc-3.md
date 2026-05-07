@@ -119,8 +119,8 @@ Tải file `outputs/metrics.json` từ artifacts của hai lần chạy để so
 
 | Chỉ số | Bước 2 (2998 mẫu) | Bước 3 (5996 mẫu) |
 |---|---|---|
-| accuracy | ? | ? |
-| f1_score | ? | ? |
+| accuracy | 0.678 | 0.6767968417873045 |
+| f1_score | 0.738 | 0.7369461707296492 |
 
 Điền vào bảng trên dựa trên kết quả thực tế của bạn. Nếu mô hình mới có accuracy cao hơn, điều đó chứng tỏ thêm dữ liệu làm tăng hiệu quả mô hình.
 

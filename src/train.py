@@ -10,7 +10,8 @@ import yaml
 import json
 import joblib
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, precision_score, recall_score
 
 EVAL_THRESHOLD = 0.70
 
@@ -25,6 +26,38 @@ if mlflow.get_experiment_by_name(_exp_name) is None:
 mlflow.set_experiment(_exp_name)
 
 
+MODEL_REGISTRY = {
+    "random_forest": RandomForestClassifier,
+    "logistic_regression": LogisticRegression,
+}
+
+
+def _build_model(model_type: str, params: dict):
+    """
+    Khoi tao mo hinh tuong ung voi model_type.
+    Loai bo cac tham so khong phu hop voi tung loai mo hinh.
+    """
+    if model_type == "random_forest":
+        # Chi lay cac tham so RandomForest can
+        rf_params = {
+            k: params[k] for k in ("n_estimators", "max_depth", "min_samples_split")
+            if k in params
+        }
+        return RandomForestClassifier(random_state=42, **rf_params)
+
+    elif model_type == "logistic_regression":
+        lr_params = {
+            k: params[k] for k in ("C", "solver", "max_iter", "penalty")
+            if k in params and k != "penalty"  # penalty chi ap dung voi solver moi
+        }
+        # LogisticRegression mac dinh dung 'l2' penalty, khong can truyen explicit
+        return LogisticRegression(random_state=42, **lr_params)
+
+    else:
+        raise ValueError(f"Unknown model_type: {model_type}. "
+                         f"Supported: {list(MODEL_REGISTRY.keys())}")
+
+
 def train(
     params: dict,
     data_path: str = "data/train_phase1.csv",
@@ -34,7 +67,7 @@ def train(
     Huan luyen mo hinh va ghi nhan ket qua vao MLflow.
 
     Tham so:
-        params     : dict chua cac sieu tham so cho RandomForestClassifier.
+        params     : dict chua cac sieu tham so va model_type.
         data_path  : duong dan den file du lieu huan luyen.
         eval_path  : duong dan den file du lieu danh gia.
 
@@ -52,15 +85,29 @@ def train(
     X_eval  = df_eval.drop(columns=["target"])
     y_eval  = df_eval["target"]
 
+    # Bonus 5: Kiem tra phan phoi nhan
+    label_counts = y_train.value_counts().sort_index()
+    total = len(y_train)
+    label_dist = {str(k): float(v / total) for k, v in label_counts.items()}
+    print("\n[Bonus 5] Phan phoi nhan tren tap huan luyen:")
+    for k, v in label_dist.items():
+        pct = v * 100
+        warn = " *** CANH BAO: < 10% ***" if v < 0.10 else ""
+        print(f"  Lop {k}: {pct:.2f}%{warn}")
+    # Kiem tra neu co lop < 10%
+    low_classes = [k for k, v in label_dist.items() if v < 0.10]
+
     with mlflow.start_run():
+
+        # Lay model_type va ghi nhan vao MLflow
+        model_type = params.pop("model_type", "random_forest")
+        mlflow.log_param("model_type", model_type)
 
         # TODO 3: Ghi nhan cac sieu tham so
         mlflow.log_params(params)
 
-        # TODO 4: Khoi tao va huan luyen RandomForestClassifier
-        # Goi y: su dung random_state=42 de dam bao tinh tai tao
-        # params la dict chua cac sieu tham so duoc doc tu params.yaml
-        model = RandomForestClassifier(random_state=42, **params)
+        # TODO 4: Khoi tao va huan luyen mo hinh theo model_type
+        model = _build_model(model_type, params)
         model.fit(X_train, y_train)
 
         # TODO 5: Du doan tren tap danh gia va tinh chi so
@@ -76,11 +123,60 @@ def train(
         # TODO 7: In ket qua ra man hinh
         print(f"Accuracy: {acc:.4f} | F1: {f1:.4f}")
 
-        # TODO 8: Luu metrics ra file outputs/metrics.json
-        # File nay duoc doc boi GitHub Actions o Buoc 2
+        # Bonus 3: Confusion matrix + precision/recall tung lop
+        cm = confusion_matrix(y_eval, preds)
+        precision_per_class = precision_score(y_eval, preds, average=None)
+        recall_per_class = recall_score(y_eval, preds, average=None)
+
+        # Ghi report.txt
         os.makedirs("outputs", exist_ok=True)
+        with open("outputs/report.txt", "w") as f:
+            f.write("=" * 60 + "\n")
+            f.write("BANG BAO CAO HIEU SUAT MO HINH\n")
+            f.write("=" * 60 + "\n\n")
+            f.write(f"Model type: {model_type}\n")
+            f.write(f"Accuracy:   {acc:.4f}\n")
+            f.write(f"F1 Score:   {f1:.4f}\n\n")
+
+            f.write("-" * 40 + "\n")
+            f.write("Confusion Matrix:\n")
+            f.write("-" * 40 + "\n")
+            f.write("        " + " ".join(f"Du doan {i}" for i in range(len(cm))) + "\n")
+            for i, row in enumerate(cm):
+                f.write(f"Thuc {i}:  " + " ".join(f"{v:>8}" for v in row) + "\n")
+            f.write("\n")
+
+            f.write("-" * 40 + "\n")
+            f.write("Chi tiet tung lop:\n")
+            f.write("-" * 40 + "\n")
+            f.write(f"{'Lop':<6} {'Precision':<12} {'Recall':<12} {'So mau':<8}\n")
+            f.write("-" * 40 + "\n")
+            for i in range(len(precision_per_class)):
+                count = int((y_eval == i).sum())
+                f.write(f"{i:<6} {precision_per_class[i]:<12.4f} {recall_per_class[i]:<12.4f} {count:<8}\n")
+
+            # Bonus 5: Phan phoi nhan
+            f.write("\n")
+            f.write("-" * 40 + "\n")
+            f.write("Phan phoi nhan (tap huan luyen):\n")
+            f.write("-" * 40 + "\n")
+            for k, v in sorted(label_dist.items()):
+                f.write(f"  Lop {k}: {v*100:.2f}%\n")
+
+            f.write("\n" + "=" * 60 + "\n")
+
+        print("\n[Bonus 3] Da ghi bao cao vao outputs/report.txt")
+
+        # TODO 8: Luu metrics ra file outputs/metrics.json
         with open("outputs/metrics.json", "w") as f:
-            json.dump({"accuracy": acc, "f1_score": f1}, f)
+            json.dump({
+                "accuracy": acc,
+                "f1_score": f1,
+                "label_distribution": label_dist,
+                "precision_per_class": [float(p) for p in precision_per_class],
+                "recall_per_class": [float(r) for r in recall_per_class],
+                "confusion_matrix": cm.tolist(),
+            }, f, indent=2)
 
         # TODO 9: Luu mo hinh ra file models/model.pkl
         # File nay duoc upload len GCS o Buoc 2
